@@ -1,0 +1,444 @@
+---
+title: "Assignment 2"
+author: "Group 16"
+date: "2/20/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+| **Group Member Name** | **M-Number** |
+|-----------------------|--------------|
+| Erik Randall          | M12942660    |
+| Omar Ahmouda          | M12849124    |
+| Ashlynne Minton       | M13346414    |
+
+```{r include=FALSE}
+library(fastDummies)
+library(e1071)
+library(neuralnet)
+library(nnet)
+library(caret)
+library(tidyverse)
+library(ggplot2)
+library(fpp3)
+library(latex2exp)
+```
+
+## **1. Import and format data**
+
+###  A.) Import and convert bicycle.rda to a tsibble with an index of dteday
+
+```{r}
+Bike <- readRDS('bicycle.rda')
+
+Bike <- Bike %>%
+  as_tsibble(index = dteday)
+
+glimpse(Bike)
+head(Bike)
+```
+
+### B.) Using select(), retain only these columns: (dteday, workingday, weathersit, atemp, windspeed, cnt)
+
+```{r}
+Bike <- Bike %>% 
+  select(dteday, workingday, weathersit, atemp, windspeed, cnt)
+
+head(Bike)
+```
+
+### C.) Create a new column called weekday_factor which is the abbreviated day of week 
+
+```{r}
+Bike <- Bike %>% 
+  mutate(weekday_factor = factor(wday(dteday, label = T, abbr = T)))
+```
+
+### D.) Create a new column called workingday_factor which converts workingday to a factor (use factor())
+
+```{r}
+Bike <- Bike %>% 
+  mutate(workingday_factor = factor(workingday))
+```
+
+### E.) Convert weathersit to factor called weathersit_factor (use factor())
+
+```{r}
+Bike <- Bike %>% 
+  mutate(weathersit_factor = factor(weathersit))
+```
+
+### F.) Remove workingday and weathersit columns from dataset
+
+```{r}
+Bike <- Bike %>% 
+  select(-c(weathersit, workingday))
+
+glimpse(Bike)
+head(Bike)
+```
+
+## **2. Visualize the the time series and potential predictor variables**
+
+### A.) Use autoplot() or ggplot’s geom_line() to visualize the time series’ cnt column
+
+```{r}
+ggplot(Bike) +
+  aes(x = dteday, y = cnt) +
+  geom_line(size = .7, colour = "#1B901C") +
+  labs(
+    x = "dteday [1D]",
+    title = "Total Number of rental bikes ",
+    subtitle = "From day to day",
+    caption = "2011 -2013"
+  ) +
+  ggthemes::theme_solarized()
+```
+
+### B.) Visualize average bike rentals for weekday_factor, workingday_factor and weathersit_factor to understand to understand how the day of week and generalized weather impacts average ridership
+
+```{r}
+aggregate(cnt~weekday_factor, Bike, mean) %>% 
+  arrange(-cnt)
+
+weekday_factor_bar <- aggregate(cnt~weekday_factor, Bike, mean)
+workingday_factor_bar <- aggregate(cnt~workingday_factor, Bike, mean)
+weathersit_factor_bar <- aggregate(cnt~weathersit_factor, Bike, mean)
+
+weekday_factor_bar$cnt <- round(weekday_factor_bar$cnt, digits = 0)
+workingday_factor_bar$cnt <- round(workingday_factor_bar$cnt, digits = 0)
+weathersit_factor_bar$cnt <- round(weathersit_factor_bar$cnt, digits = 0)
+
+weekday_factor_bar %>%
+  mutate(weekday_factor = fct_reorder(weekday_factor, cnt)) %>% 
+  ggplot() +
+  aes(x = weekday_factor, y = cnt, fill = weekday_factor, label = cnt) +
+  geom_bar(stat='identity', color = "black", alpha = 0.7) +
+  scale_fill_hue(direction = 1) +
+  theme(legend.position = "right", axis.text.x = element_text(angle = 45, hjust = 0.8))+
+  labs(
+    y = "Average cnt",
+    title = "Average Total of rental Bikes",
+    subtitle = "By: weekday"
+  ) +
+  ggthemes::theme_solarized() +
+  geom_text(nudge_y = 2, vjust = 2)
+  
+workingday_factor_bar %>% 
+  mutate(workingday_factor = fct_reorder(workingday_factor, cnt)) %>% 
+  ggplot() +
+  aes(x = workingday_factor, y = cnt, fill = workingday_factor, label = cnt) +
+  geom_bar(stat='identity', color = "black", alpha = 0.7) +
+  scale_fill_brewer(palette = "Purples", direction = 1) +
+  theme(legend.position = "right", axis.text.x = element_text(angle = 45, hjust = 0.8))+
+  labs(
+    y = "Average cnt",
+    title = "Average Total of rental Bikes",
+    subtitle = "By: workday"
+  ) +
+  ggthemes::theme_solarized() +
+  geom_text(nudge_y = 2, vjust = 2)
+
+weathersit_factor_bar %>% 
+  mutate(weathersit_factor = fct_reorder(weathersit_factor, cnt)) %>% 
+  ggplot() +
+  aes(x = weathersit_factor, y = cnt, fill = weathersit_factor, label = cnt) +
+  geom_bar(stat='identity', color = "black", alpha = 0.7) +
+  scale_fill_brewer(palette = "YlGnBu", direction = 1) +
+  theme(legend.position = "right", axis.text.x = element_text(angle = 45, hjust = 0.8))+
+  labs(
+    y = "Average cnt",
+    title = "Average Total of rental Bikes",
+    subtitle = "By: Weather"
+  ) +
+  ggthemes::theme_solarized() +
+  geom_text(nudge_y = 2, vjust = 2)
+```
+
+### C.) Perform a scatter plot of cnt and the below variables. Describe the relationships.
+
+```{r}
+ggplot(Bike) +
+  aes(
+    x = cnt,
+    y = atemp,
+    color = windspeed
+  ) +
+  geom_point(shape = "circle") +
+  geom_smooth(method = lm, color = "#17752a") +
+  labs(x = "cnt",
+       y = "Temperature (atemp)", 
+       title = "Total # of rental bikes & Temperature") +
+  scale_color_distiller(palette = "BuGn", direction = 1) +
+  ggthemes::theme_solarized() +
+  theme(legend.position = "bottom")
+```
+
+#### Output:
+
+-   #### When looking at the scatter plot there is an increase in total # of bike rentals as temperature increases & windspeed decreases
+
+### D.) Based on what you notice above, what predictor variables would you include in a time series linear model? Which of these variables would be considered dummy variables? 
+
+-   #### For categorical predictor variables we would include Weekday_factor and weathersit_factor as there could be some multicollinearity between the Weekday & workingday variables. 
+
+-   #### For numerical predictor variables we would include both atemp & windspeed as they both show correlation with cnt 
+
+-   #### cnt would be included as the dependent variable, assuming that's what were trying to forecast in the future
+
+-   #### The categorical variables would be converted to dummy variables
+
+## **3. Are total rentals per day (the cnt variable) stationary?**
+
+### A.) Plot a correlogram (ACF plot) of the cnt column. What does the plot tell you about the stationarity of the data? Confirm this with a KPSS unit root test.
+
+```{r}
+Bike %>% 
+  ACF(cnt) %>% 
+  autoplot()
+
+Bike %>% 
+  features(cnt, unitroot_kpss)
+```
+
+#### Output:
+
+-   #### The correlogram shows us that there is an overall downward trend as well as what seems to be a downward seasonality trend 
+
+-   #### Null hypothesis states the data is stationary when using the KPSS test and if the test statistic is greater than the p-value we would reject the null hypothesis
+
+-   #### We can see that the test statistic of 5.52 is greater than the 1% critical value so we would indeed reject and conclude the data is not stationary
+
+### B.) Difference the data and test stationarity with a KPSS unit root test
+
+```{r}
+Bike %>%
+  mutate(diff_cnt = difference(cnt)) %>%
+  features(diff_cnt, unitroot_kpss)
+```
+
+#### Output:
+
+-   #### When we difference the data we can now see the test statistic is super tiny at .05, so the p-value is greater than .1 
+
+-   #### From this we can conclude the differenced data seems to be stationary
+
+### C.) Create new column called diff_cnt which is difference(cnt)
+
+```{r}
+Bike <- Bike %>%
+  mutate(diff_cnt = difference(cnt))
+
+glimpse(Bike)
+```
+
+## **4. Fit TSLM models to the data**
+
+### A.) Create a new column called lag_diff_cnt which is lag(diff_cnt) 
+
+```{r}
+Bike <- Bike %>% 
+  mutate(lag_diff_cnt = lag(diff_cnt))
+```
+
+### B.) Create a new column called lag_weather which is lag(weathersit_factor)
+
+```{r}
+Bike <- Bike %>% 
+  mutate(lag_weather = lag(weathersit_factor))
+```
+
+### C.) Filter out the first row of data which includes missing values for the lags just created
+
+```{r}
+Bike <- Bike %>%
+  filter(!is.na(diff_cnt))
+```
+
+### D.) Split the dataset into a train and test set
+
+```{r}
+train <- Bike %>% 
+  filter(dteday < '2012-10-01')
+
+test <- Bike %>% 
+  filter(dteday >= '2012-10-01', dteday <= '2012-10-30')
+```
+
+### E.) Fit the following lm models to the train dataset 
+
+```{r}
+models <- train %>% 
+  model(
+    lm_diff_cnt = TSLM(diff_cnt ~ atemp + workingday_factor + weathersit_factor),
+    lm_diff_cnt2 = TSLM(diff_cnt ~ lag_diff_cnt + atemp + workingday_factor + weathersit_factor),
+    lm_diff_cnt3 = TSLM(diff_cnt ~ lag_diff_cnt+ lag_weather + atemp + workingday_factor + weathersit_factor)
+  )
+
+glance(models)
+
+fc <- models %>% 
+  forecast(new_data = test)
+
+fc %>% 
+  autoplot(test, level = NULL)
+
+models %>% 
+  accuracy()
+
+fc %>% 
+  accuracy(Bike)
+```
+
+#### Output:
+
+-   #### We can see that the 3rd model has the lowest AICc at 8544.994, which could be because its has the most variables
+
+-   #### When comparing the residuals we don't see a huge difference however, model 3 is barley pulling ahead as the closer the residual is to zero the better the fit!
+
+### 1. Run the model() again with the best performing formulation and use report() to view the coefficients for each of the predictor variables
+
+```{r}
+final <- train %>% 
+  model(lm_diff_cnt3 = TSLM(diff_cnt ~ lag_diff_cnt+ lag_weather + atemp + workingday_factor + weathersit_factor))
+
+report(final)
+```
+
+#### Output:
+
+-   #### After running the best formulated model "lm_diff_cnt3" we can see that all of the variables are significant except atemp, which you then could opt out depending on your goals
+
+### 2. For next steps see section 7.3: Use gg_tsresiduals() to inspect the residuals. Are the residuals autocorrelated? What does this imply about the model?
+
+```{r}
+final %>% gg_tsresiduals()
+```
+
+```{r}
+augment(final) %>%
+  features(.innov, ljung_box, lag = 10, dof = 8)
+
+augment(final) %>% 
+  ggplot(aes(x=dteday)) +
+  geom_line(aes(y = diff_cnt, color = "Data")) +
+  geom_line(aes(y = .fitted, color = "Fitted")) +
+  scale_color_manual(values = c(Data = "Black", Fitted = "Blue"))
+```
+
+#### Output:
+
+-   #### The time plot shows a lot of variance with some spiking, which could cause some inaccuracy in our forecast
+
+-   #### The histogram seems to follow a normal distribution, which essentially means the data near the mean is more likely to occur
+
+-   #### The acf plot shows mostly white noise with spikes at lag 1, 2, 6, & 28. This means that the autocorrelation is not that large but there is some. (model could be better)
+
+### 3. Are the residuals stationary? (use a KPSS unit root test)
+
+```{r}
+augment(final) %>% 
+  features(.innov, unitroot_kpss)
+```
+
+#### output:
+
+-   #### From the KPSS unit root test we can conclude the residuals are stationary!
+
+### 4. Plot the residuals against the predictors lag_cnt and atemp. Do they appear to be randomly scattered?
+
+```{r}
+train %>% 
+  left_join(residuals(final), by = "dteday") %>% 
+  pivot_longer(c(lag_diff_cnt, atemp),
+               names_to = "regressor", values_to = "x") %>% 
+  ggplot(aes(x = x, y = .resid)) +
+  geom_point() +
+  facet_wrap(. ~ regressor, scales = "free_x") +
+  labs(y = "Residuals", x = "") +
+  ggthemes::theme_solarized()
+```
+
+#### Output:
+
+-   #### When looking at the plots they seems to be randomly scattered or (white noise), meaning our model is looks good!
+
+### 5. Plot the residuals against the fitted values. What do you see?
+
+```{r}
+augment(final) %>% 
+  ggplot(aes(x = .fitted, y = .innov)) +
+  geom_point() +
+  labs(x = "Fitted", y = "Residuals") +
+  ggthemes::theme_solarized()
+```
+
+#### Output:
+
+-   #### When plotting fitted values vs residuals we see a lot of noise, which is what we want!
+
+### F.) Compare to benchmark methods
+
+### 1. Fit 4 models: **194**
+
+```{r}
+models <- train %>% 
+  model(
+    lm_diff_cnt = TSLM(diff_cnt ~ lag_diff_cnt + lag_weather + workingday_factor + weathersit_factor), 
+    mean = MEAN(diff_cnt), 
+    naive = NAIVE(diff_cnt),
+    drift = RW(diff_cnt ~ drift())
+  )
+
+glance(models)
+```
+
+### 2. Plot the forecasts for the test dataset (10/1/2012-10/30/2012)
+
+```{r}
+fc <- models %>% 
+  forecast(new_data = test)
+
+fc %>% 
+  autoplot(test, level = NULL)
+
+models %>% 
+  accuracy()
+
+fc %>% 
+  accuracy(Bike)
+```
+
+#### Output:
+
+-   #### When comparing then benchmark models to the linear model its clear that our linear model performs better on the test set as our RMSE is the lowest with a 1332.708
+
+-   #### When looking at MAE our linear model also performs the best, which is good considering its less sensitive to outliers    
+
+## **FPP3 – 3.7, EXERCISE 3 (1PT):**
+
+### Why is a Box-Cox transformation unhelpful for the canadian_gas data? 
+
+```{r}
+canadian_gas %>%
+  autoplot(Volume)+
+  labs(title = "Canadian Gas Production",
+       y = "Monthly Canadian Gas Production (billions of cubic meter)")+
+  theme_replace()+
+  geom_line(col = "#1B89D3")
+
+lambda_cangas <- canadian_gas %>%
+                  features(Volume, features = guerrero) %>%
+                  pull(lambda_guerrero)
+canadian_gas %>%
+  autoplot(box_cox(Volume, lambda = lambda_cangas))+
+  labs(title = latex2exp::TeX(paste0(
+         "Box Cox Transformation of Canadian Gas Production with $\\lambda$ = ",
+         round(lambda_cangas,2))))+
+  theme_replace()+
+  geom_line(col = "#1B89D3")
+```
+
+#### Output:
+
+-   #### The Box Cox transformation can't be used to make the seasonal variation uniform because the seasonal variation increases then decreases. We can see this in the plot we made for Canadian gas prices where from 1960 to 1978 the seasonal variance is low however, its get larger until 1988 where it then drops again through 2005. 
