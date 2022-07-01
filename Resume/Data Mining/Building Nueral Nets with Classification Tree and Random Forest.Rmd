@@ -1,0 +1,438 @@
+---
+title: "hw 5"
+author: "Omar Ahmouda"
+date: "4/12/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/ahmou/OneDrive/Documents/working directory/")
+```
+```{r}
+install.packages("neuralnet")
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+install.packages("rpart.plot")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+install.packages("randomForest")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+####### extract Month from Date #######
+weather.df <- read.csv("weatherAUS.csv", stringsAsFactors = TRUE, header = TRUE)
+
+
+weather.df$Date <- as.Date(weather.df$Date, format = "%m/%d/%Y")
+library(lubridate)
+# extract month from Date and make it a factor
+weather.df$Month <- as.factor(month(weather.df$Date))
+# drop Date, Location, Temp3pm, and Pressure3pm
+t(t(names(weather.df)))
+weather.df <- weather.df[ , -c(1:2, 17, 21)]
+
+####### handling missing data #######
+numcols <- colnames(Filter(is.numeric, weather.df))
+for (i in numcols) {
+  ifelse(sum(is.na(weather.df[[i]]))/nrow(weather.df) > 0.01,
+         weather.df[[i]][is.na(weather.df[[i]])] <- median(weather.df[[i]], na.rm = TRUE),
+         weather.df <- weather.df[!is.na(weather.df[[i]]), ])
+}
+
+summary(weather.df)
+```
+```{r}
+# drop unused level for RainToday
+summary(Filter(is.factor, weather.df))
+weather.df$RainToday <- droplevels(weather.df$RainToday)
+summary(weather.df$RainToday)
+str(weather.df)
+```
+```{r}
+####### partition the data #######
+set.seed(7)
+train.index <- sample(rownames(weather.df), nrow(weather.df) * 0.15)
+train.df <- weather.df[train.index, ]
+valid.index <- setdiff(rownames(weather.df), train.index)
+valid.df <- weather.df[valid.index, ]
+
+str(train.df)
+t(t(names(weather.df)))
+```
+
+```{r}
+####### Classification tree #######
+library(rpart)
+library(rpart.plot)
+
+# for the full tree...
+class.tree <- rpart(RainTomorrow ~ .,          # categorical outcome ~ predictors
+                    data = train.df,        # data set used to train tree; normally use training data here
+                    method = "class",       # specifies classification tree
+                    cp = 0,                 # complexity parameter
+                    minsplit = 2)           # minimum observations required to attempt split; default minimum split is 20
+length(class.tree$frame$var[class.tree$frame$var == "<leaf>"])
+
+## plot tree
+prp(class.tree,          # tree model
+    type = 1,            # label all the nodes
+    extra = 1,           # show # of observations in each node
+    varlen = -10,        # truncate variable names to 10 characters
+    box.col = ifelse(class.tree$frame$var == "<leaf>", 'gray', 'white'))  # make leaves gray, decision nodes white
+
+# classify records in the training data
+class.tree.pred.train <- predict(class.tree, train.df, type="class")
+# generate confusion matrix for training data
+library(caret)
+confusionMatrix(class.tree.pred.train,
+                as.factor(train.df$RainTomorrow),
+                positive = "Yes")
+
+# classify records in the validation data
+class.tree.pred.valid <- predict(class.tree, valid.df, type = "class")
+confusionMatrix(class.tree.pred.valid, 
+                as.factor(valid.df$RainTomorrow), 
+                positive = "Yes")
+
+####### finding the best pruned tree #######
+weather.ct <- rpart(RainTomorrow ~ ., 
+               data = train.df, 
+               method = "class",
+               cp = 0, 
+               minsplit = 2, 
+               xval = 10)            # number of folds to use in cross-validation
+# use printcp() to print the table
+printcp(weather.ct)
+
+#########find the minimum error#########
+minerror <- min(weather.ct$cptable[ ,4 ])
+minerror
+#########and its corresponding standard error#########
+minerrorstd <- weather.ct$cptable[weather.ct$cptable[,4] == minerror, 5]
+minerrorstd
+#########the tree size with the minimum xerror#########
+weather.ct$cptable[weather.ct$cptable[,4] == minerror, ]
+#Here, the minimum error tree has 17 splits
+
+########The Math########
+0.708 + 0.0146
+#xerror ≤ 0.7226 
+#So the 7th observation, 16 nodes
+
+#########get list of trees where xerror is less than minerror + minerrorstd#########
+simplertrees <- weather.ct$cptable[weather.ct$cptable[,4] < minerror + minerrorstd, ]
+# use the cp from the simplest of those trees
+bestcp <- simplertrees[1, 1]
+bestcp
+weather.ct$cptable[weather.ct$cptable[,1] == bestcp, ]
+#The best pruned tree is much simpler with only 16 splits.
+
+#######prune the tree using the best cp value#######
+weather.pruned <- prune(weather.ct, cp = bestcp)
+prp(weather.pruned, type = 1, extra = 1, varlen = -10, digits = -3,
+    box.col = ifelse(weather.pruned$frame$var == "<leaf>", 'gray', 'white'))
+
+#######manual input#######
+weather.pruned <- prune(weather.ct, cp = 0.002862)
+prp(weather.pruned, type = 1, extra = 1, varlen = -10, digits = -3,
+    box.col = ifelse(weather.pruned$frame$var == "<leaf>", 'gray', 'white'))
+```
+
+
+```{r}
+# classify records in the validation data
+# set argument type = "class" in predict() to generate predicted class membership
+weather.pruned.pred.valid <- predict(weather.pruned, valid.df, type = "class")
+
+# generate confusion matrix for validation data
+library(caret)
+confusionMatrix(weather.pruned.pred.valid, 
+                as.factor(valid.df$RainTomorrow), 
+                positive = "Yes")
+```
+
+
+```{r}
+###### Random Forest ######
+### 500 trees and subset of 4 predictores at each decision node ###
+library(randomForest)
+raintmr.rf <- randomForest(as.factor(RainTomorrow) ~ .,
+                           data = train.df,
+                           ntree = 500, # number of trees to grow
+                           mtry = 4,      # number of predictors selected at each split 
+                           nodesize = 5,   # minimum size of terminal nodes (leaves)
+                           importance = TRUE)     # calculate importance soces
+### Plot the variable importance plot ###
+varImpPlot(raintmr.rf, type = 1)
+
+### Confusion matrix ###
+raintmr.rf.pred <- predict(raintmr.rf, valid.df)
+confusionMatrix(raintmr.rf.pred, as.factor(valid.df$RainTomorrow), 
+                positive = "Yes")
+```
+
+```{r}
+setwd("C:/Users/ahmou/OneDrive/Documents/working directory/")
+weather.df <- read.csv("weatherAUS.csv", stringsAsFactors = TRUE, header = TRUE)
+
+####### extract Month from Date #######
+weather.df$Date <- as.Date(weather.df$Date, format = "%m/%d/%Y")
+library(lubridate)
+# extract month from Date and make it a factor
+weather.df$Month <- as.factor(month(weather.df$Date))
+# drop Date, Location, Temp3pm, and Pressure3pm
+t(t(names(weather.df)))
+weather.df <- weather.df[ , -c(1:2, 17, 21)]
+#make rain tomoroow a factor
+numcols <- colnames(Filter(is.numeric, weather.df))
+for (i in numcols) {
+  ifelse(sum(is.na(weather.df[[i]]))/nrow(weather.df) > 0.01,
+         weather.df[[i]][is.na(weather.df[[i]])] <- median(weather.df[[i]], na.rm = TRUE),
+         weather.df <- weather.df[!is.na(weather.df[[i]]), ])
+}
+
+summary(weather.df)
+
+# drop unused level for RainToday
+summary(Filter(is.factor, weather.df))
+weather.df$RainToday <- droplevels(weather.df$RainToday)
+summary(weather.df$RainToday)
+str(weather.df)
+
+####### create dummy variables ######
+library(fastDummies)
+weather.df <- dummy_cols(weather.df,
+                         select_columns = c("WindGustDir", "WindDir9am", "WindDir3pm", 
+                                            "RainToday", "RainTomorrow", "Month"), 
+                         remove_first_dummy = TRUE,
+                         remove_selected_columns = TRUE)
+t(t(names(weather.df)))
+
+library(dplyr)
+weather.df <- rename(weather.df, "WindGustDir_Not_Available" = `WindGustDir_Not Available`, 
+                     "WindDir9am_Not_Available" = `WindDir9am_Not Available`,
+                     "WindDir3pm_Not_Available" = `WindDir3pm_Not Available`)
+# check for highly skewed predictors
+library(e1071)
+skewness(weather.df$MinTemp)
+skewness(weather.df$MaxTemp)
+skewness(weather.df$Rainfall)
+skewness(weather.df$Evaporation)
+skewness(weather.df$Sunshine)
+skewness(weather.df$WindGustSpeed)
+skewness(weather.df$WindSpeed9am)
+skewness(weather.df$WindSpeed3pm)
+skewness(weather.df$Humidity9am)
+skewness(weather.df$Humidity3pm)
+skewness(weather.df$Pressure9am)
+skewness(weather.df$Cloud9am)
+skewness(weather.df$Cloud3pm)
+skewness(weather.df$Temp9am)
+skewness(weather.df$WindGustDir_ENE)
+skewness(weather.df$WindGustDir_ESE)
+skewness(weather.df$WindGustDir_NNE)
+skewness(weather.df$WindGustDir_NE)
+skewness(weather.df$WindGustDir_NNW)
+skewness(weather.df$WindGustDir_Not_Available)
+skewness(weather.df$WindGustDir_NW)
+skewness(weather.df$WindGustDir_N)
+skewness(weather.df$WindGustDir_S)
+skewness(weather.df$WindGustDir_SE)
+skewness(weather.df$WindGustDir_SSE)
+skewness(weather.df$WindGustDir_SW)
+skewness(weather.df$WindGustDir_SSW)
+skewness(weather.df$WindGustDir_W)
+skewness(weather.df$WindGustDir_WNW)
+skewness(weather.df$WindGustDir_WSW)
+skewness(weather.df$WindDir9am_ENE)
+skewness(weather.df$WindDir9am_ESE)
+skewness(weather.df$WindDir9am_NNE)
+skewness(weather.df$WindDir9am_NE)
+skewness(weather.df$WindDir9am_NNW)
+skewness(weather.df$WindDir9am_Not_Available)
+skewness(weather.df$WindDir9am_NW)
+skewness(weather.df$WindDir9am_N)
+skewness(weather.df$WindDir9am_S)
+skewness(weather.df$WindDir9am_SE)
+skewness(weather.df$WindDir9am_SSE)
+skewness(weather.df$WindDir9am_SW)
+skewness(weather.df$WindDir9am_SSW)
+skewness(weather.df$WindDir9am_W)
+skewness(weather.df$WindDir9am_WNW)
+skewness(weather.df$WindDir9am_WSW)
+skewness(weather.df$WindDir3pm_ENE)
+skewness(weather.df$WindDir3pm_ESE)
+skewness(weather.df$WindDir3pm_NNE)
+skewness(weather.df$WindDir3pm_NE)
+skewness(weather.df$WindDir3pm_NNW)
+skewness(weather.df$WindDir3pm_Not_Available)
+skewness(weather.df$WindDir3pm_NW)
+skewness(weather.df$WindDir3pm_N)
+skewness(weather.df$WindDir3pm_S)
+skewness(weather.df$WindDir3pm_SE)
+skewness(weather.df$WindDir3pm_SSE)
+skewness(weather.df$WindDir3pm_SW)
+skewness(weather.df$WindDir3pm_SSW)
+skewness(weather.df$WindDir3pm_W)
+skewness(weather.df$WindDir3pm_WNW)
+skewness(weather.df$WindDir3pm_WSW)
+skewness(weather.df$RainToday_Yes)
+skewness(weather.df$RainTomorrow_Yes)
+skewness(weather.df$Month_2)
+skewness(weather.df$Month_3)
+skewness(weather.df$Month_4)
+skewness(weather.df$Month_5)
+skewness(weather.df$Month_6)
+skewness(weather.df$Month_7)
+skewness(weather.df$Month_8)
+skewness(weather.df$Month_9)
+skewness(weather.df$Month_10)
+skewness(weather.df$Month_11)
+skewness(weather.df$Month_12)
+
+
+# apply a log transformation to highly skewed predictors
+weather.df$Rainfall <- log(weather.df$Rainfall + 1)
+weather.df$Evaporation <- log(weather.df$Evaporation + 1)
+weather.df$WindGustSpeed <- log(weather.df$WindGustSpeed + 1)
+weather.df$WindGustDir_ENE <- log(weather.df$WindGustDir_ENE + 1)
+weather.df$WindGustDir_ESE <- log(weather.df$WindGustDir_ESE + 1)
+weather.df$WindGustDir_NNE <- log(weather.df$WindGustDir_NNE + 1)
+weather.df$WindGustDir_NE <- log(weather.df$WindGustDir_NE + 1)
+weather.df$WindGustDir_NNW <- log(weather.df$WindGustDir_NNW + 1)
+weather.df$WindGustDir_Not_Available <- log(weather.df$WindGustDir_Not_Available + 1)
+weather.df$WindGustDir_NW <- log(weather.df$WindGustDir_NW + 1)
+weather.df$WindGustDir_N <- log(weather.df$WindGustDir_N + 1)
+weather.df$WindGustDir_S <- log(weather.df$WindGustDir_S + 1)
+weather.df$WindGustDir_SE <- log(weather.df$WindGustDir_SE + 1)
+weather.df$WindGustDir_SSE <- log(weather.df$WindGustDir_SSE + 1)
+weather.df$WindGustDir_SW <- log(weather.df$WindGustDir_SW + 1)
+weather.df$WindGustDir_SSW <- log(weather.df$WindGustDir_SSW + 1)
+weather.df$WindGustDir_W <- log(weather.df$WindGustDir_W + 1)
+weather.df$WindGustDir_WNW <- log(weather.df$WindGustDir_WNW + 1)
+weather.df$WindGustDir_WSW <- log(weather.df$WindGustDir_WSW + 1)
+weather.df$WindDir9am_ENE <- log(weather.df$WindDir9am_ENE + 1)
+weather.df$WindDir9am_ESE <- log(weather.df$WindDir9am_ESE + 1)
+weather.df$WindDir9am_NNE <- log(weather.df$WindDir9am_NNE + 1)
+weather.df$WindDir9am_NE <- log(weather.df$WindDir9am_NE + 1)
+weather.df$WindDir9am_NNW <- log(weather.df$WindDir9am_NNW + 1)
+weather.df$WindDir9am_Not_Available <- log(weather.df$WindDir9am_Not_Available + 1)
+weather.df$WindDir9am_NW <- log(weather.df$WindDir9am_NW + 1)
+weather.df$WindDir9am_N <- log(weather.df$WindDir9am_N + 1)
+weather.df$WindDir9am_S <- log(weather.df$WindDir9am_S + 1)
+weather.df$WindDir9am_SE <- log(weather.df$WindDir9am_SE + 1)
+weather.df$WindDir9am_SSE <- log(weather.df$WindDir9am_SSE + 1)
+weather.df$WindDir9am_SW <- log(weather.df$WindDir9am_SW + 1)
+weather.df$WindDir9am_SSW <- log(weather.df$WindDir9am_SSW + 1)
+weather.df$WindDir9am_W <- log(weather.df$WindDir9am_W + 1)
+weather.df$WindDir9am_WNW <- log(weather.df$WindDir9am_WNW + 1)
+weather.df$WindDir9am_WSW <- log(weather.df$WindDir9am_WSW + 1)
+weather.df$WindDir3pm_ENE <- log(weather.df$WindDir3pm_ENE + 1)
+weather.df$WindDir3pm_ESE <- log(weather.df$WindDir3pm_ESE + 1)
+weather.df$WindDir3pm_NNE <- log(weather.df$WindDir3pm_NNE + 1)
+weather.df$WindDir3pm_NE <- log(weather.df$WindDir3pm_NE + 1)
+weather.df$WindDir3pm_NNW <- log(weather.df$WindDir3pm_NNW + 1)
+weather.df$WindDir3pm_Not_Available <- log(weather.df$WindDir3pm_Not_Available + 1)
+weather.df$WindDir3pm_NW <- log(weather.df$WindDir3pm_NW + 1)
+weather.df$WindDir3pm_N <- log(weather.df$WindDir3pm_N + 1)
+weather.df$WindDir3pm_S <- log(weather.df$WindDir3pm_S + 1)
+weather.df$WindDir3pm_SE <- log(weather.df$WindDir3pm_SE + 1)
+weather.df$WindDir3pm_SSE <- log(weather.df$WindDir3pm_SSE + 1)
+weather.df$WindDir3pm_SW <- log(weather.df$WindDir3pm_SW + 1)
+weather.df$WindDir3pm_SSW <- log(weather.df$WindDir3pm_SSW + 1)
+weather.df$WindDir3pm_W <- log(weather.df$WindDir3pm_W + 1)
+weather.df$WindDir3pm_WNW <- log(weather.df$WindDir3pm_WNW + 1)
+weather.df$WindDir3pm_WSW <- log(weather.df$WindDir3pm_WSW + 1)
+weather.df$RainToday_Yes <- log(weather.df$RainToday_Yes + 1)
+weather.df$Month_2 <- log(weather.df$Month_2 + 1)
+weather.df$Month_3 <- log(weather.df$Month_3 + 1)
+weather.df$Month_4 <- log(weather.df$Month_4 + 1)
+weather.df$Month_5 <- log(weather.df$Month_5 + 1)
+weather.df$Month_6 <- log(weather.df$Month_6 + 1)
+weather.df$Month_7 <- log(weather.df$Month_7 + 1)
+weather.df$Month_8 <- log(weather.df$Month_8 + 1)
+weather.df$Month_9 <- log(weather.df$Month_9 + 1)
+weather.df$Month_10 <- log(weather.df$Month_10 + 1)
+weather.df$Month_11 <- log(weather.df$Month_11 + 1)
+weather.df$Month_12 <- log(weather.df$Month_12 + 1)
+
+#partition the data
+set.seed(1)
+train.nn.index <- sample(rownames(weather.df), nrow(weather.df)*0.05)
+weather.nn.train <- weather.df[train.nn.index, ]
+valid.nn.index <- setdiff(rownames(weather.df), train.nn.index)
+weather.nn.valid <- weather.df[valid.nn.index, ]
+
+# convert all predictors to a 0-1 scale
+weather.nn.train.norm <- weather.nn.train
+weather.nn.valid.norm <- weather.nn.valid
+cols <- colnames(weather.nn.train)
+for (i in cols) {
+ # weather.nn.valid.norm[[i]] <- 
+  #  (weather.nn.valid.norm[[i]] - min([[i]])) / (max(weather.nn.train[[i]]) - #min(weather.nn.train[[i]]))
+  weather.nn.train.norm[[i]] <- 
+    (weather.nn.train.norm[[i]] - min(weather.nn.train[[i]])) / (max(weather.nn.train[[i]]) - min(weather.nn.train[[i]]))
+}
+summary(weather.nn.train.norm)
+summary(weather.nn.valid.norm)
+```
+```{r}
+#nn with 1 layer and 3 nodes
+library(neuralnet)
+weather.nn.3 <- neuralnet(RainTomorrow_Yes ~ .,           # categorical outcome ~ predictors 
+                          data = weather.nn.train.norm,      # data for training model    
+                          linear.output = FALSE,       # assume relationship is nonlinear
+                          hidden = 3,
+                          stepmax = 1e+06)                  # a single hidden layer containing 3 nodes
+
+# plot the neural net model
+plot(weather.nn.3, rep = "best")
+```
+```{r}
+#nn with 2 layers and 2 nodes
+weather.nn.2 <- neuralnet(RainTomorrow_Yes ~ .,           # categorical outcome ~ predictors 
+                          data = weather.nn.train.norm,      # data for training model    
+                          linear.output = FALSE,       # assume relationship is nonlinear
+                          hidden = c(2,2),
+                          stepmax = 1e+07)
+                                           # a two hidden layers containing 2 nodes
+```
+```{r}
+# plot the neural net model
+plot(weather.nn.2, rep = "best")
+
+```
+```{r}
+library(caret)
+ predict.nn.3 <- predict(weather.nn.3, weather.nn.valid.norm)
+predicted.class.3 <- apply(predict.nn.3,
+                            1,
+                            which.max) - 1
+ confusionMatrix(as.factor(predicted.class.3),
+                 as.factor(weather.nn.valid.norm$RainTomorrow_Yes),
+                positive = "1")
+```
+
+```{r}
+predict.nn.2 <- predict(weather.nn.2, weather.nn.valid.norm)
+predicted.class.2 <- apply(predict.nn.2,
+                           1,
+                           which.max)-1
+confusionMatrix(as.factor(predicted.class.2),
+                weather.nn.valid.norm$RainTomorrow_Yes)
+```
+
