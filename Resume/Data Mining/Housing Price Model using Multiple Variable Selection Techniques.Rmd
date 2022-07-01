@@ -1,0 +1,1372 @@
+---
+title: "Final Proj Housing Prices"
+author: "Omar Ahmouda"
+date: "4/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+setwd("C:/Users/ahmou/OneDrive/Documents/working directory/")
+house.df <- read.csv("HousePrices.csv", stringsAsFactors = T, header = T)
+dim(house.df)
+str(house.df)
+summary(house.df)
+```
+
+```{r}
+#check for missing values
+table(is.na(house.df))
+colSums(is.na(house.df))
+
+#Drop ID, Street, and Neighborhood because they are not necessary to our conclusions. 
+#Drop Alley, Utilities, FireplaceQuality, PoolQC, Fence, MiscFeature because they have too many NAs
+t(t(names(house.df))) #81 variables
+house.df <- house.df[, -c(1,6,7,10,13,58,73,74,75)]
+t(t(names(house.df))) #we are now working with 72 variables
+```
+```{r}
+#replace missing values for the rest of the columns with missing values with the median
+numcols <- colnames(Filter(is.numeric, house.df))
+for (i in numcols) {
+  ifelse(sum(is.na(house.df[[i]]))/nrow(house.df) > 0.01,
+         house.df[[i]][is.na(house.df[[i]])] <- median(house.df[[i]], na.rm = TRUE),
+         house.df <- house.df[!is.na(house.df[[i]]), ])
+}
+```
+
+```{r}
+#check summary again
+summary(house.df)
+summary(Filter(is.numeric, house.df))
+#check for more missing values
+colSums(is.na(house.df))
+str(house.df)
+```
+```{r}
+####### correlation matrix for numeric variables #######
+t(t(colnames(Filter(is.numeric, house.df))))
+
+#second dataframe of only numeric variables
+house2 <- Filter(is.numeric, house.df)
+
+library(gplots)
+#showcasing numeric variables
+colfunc <- colorRampPalette(c("green", "white", "red"))
+heatmap.2(cor(Filter(is.numeric, house2), use = "complete.obs"), Rowv = FALSE, Colv = FALSE,
+          dendrogram = "none", lwid=c(0.1,4), lhei=c(0.1,4), col = colfunc(15),
+          cellnote = round(cor(Filter(is.numeric, house2), use = "complete.obs"),2),
+          notecol = "black", key = FALSE, trace = 'none', margins = c(10,10))
+```
+```{r}
+### Observation from the heatmap ###
+# From  heatmap: The `BsmtFinSF2`, `LowQualFinSF`, 'BsmtHalfBath`,  `X3SsnPorch`, `MiscVal`, `MoSold`, and `YrSold` all has a extreme low correlation with the outcome variable
+
+####### addressing similar variables #######
+#drop Condition2, Exterior2nd, ExterCond, GarageCond, MoSold, YrSold
+#see variable descriptions for more. They are similar with other variables
+t(t(names(house.df)))
+house.df <- house.df[, -c(10,20,24,59,68,69)]
+t(t(names(house.df))) #we are now working with 66 variables
+
+
+####### addressing multicolinnearity #######
+#drop TotRmsAbvGrd because of GrLivArea. GrLivArea has higher correlation
+#drop GarageYrBuilt because of YrBuilt. YrBuilt has higher correlation
+#drop GarageArea because of GarageCars. GarageArea has the higher correlation
+t(t(names(house.df)))
+house.df <- house.df[, -c(47,51,54)]
+t(t(names(house.df))) #we are now working with 63 variables
+
+### FINDING AND ADDRESSING OUTLIERS ####
+#Finding outliers
+boxplot(house.df$MSSubClass, 
+        xlab = "MSSubClass")
+boxplot(house.df$LotFrontage, 
+        xlab = "LotFrontage")
+boxplot(house.df$LotArea, 
+        xlab = "LotArea")
+boxplot(house.df$OverallQual, 
+        xlab = "OverallQual")
+boxplot(house.df$YearBuilt, 
+xlab = "YearBuilt")
+boxplot(house.df$YearRemodAdd, 
+xlab = "YearRemodAdd")
+boxplot(house.df$MasVnrArea, 
+        xlab = "MasVnrArea")
+boxplot(house.df$BsmtFinSF1, 
+        xlab = "BsmtFinSF1")
+boxplot(house.df$BsmtFinSF2, 
+        xlab = "BsmtFinSF2")
+boxplot(house.df$BsmtUnfSF, 
+        xlab = "BsmtFinSF")
+boxplot(house.df$TotalBsmtSF, 
+        xlab = "TotalBsmtSF")
+boxplot(house.df$X1stFlrSF, 
+        xlab = "X1stFlrSF")
+boxplot(house.df$X2ndFlrSF, 
+        xlab = "X2ndFlrSF")
+boxplot(house.df$LowQualFinSF, 
+        xlab = "LowQualFinSF")
+boxplot(house.df$GrLivArea, 
+        xlab = "GrLivArea")
+boxplot(house.df$WoodDeckSF, 
+        xlab = "WoodDeckSF")
+boxplot(house.df$OpenPorchSF, 
+        xlab = "OpenPorchSF")
+boxplot(house.df$EnclosedPorch, 
+        xlab = "EnclosedPorch")
+boxplot(house.df$X3SsnPorch, 
+        xlab = "X3SsnPorch")
+boxplot(house.df$ScreenPorch, 
+        xlab = "ScreenPorch")
+boxplot(house.df$BsmtFullBath, 
+        xlab = "BsmtFullBath")
+boxplot(house.df$BsmtHalfBath, 
+        xlab = "BsmtHalfBath")
+boxplot(house.df$FullBath, 
+        xlab = "FullBath")
+boxplot(house.df$HalfBath, 
+        xlab = "HalfBath")
+boxplot(house.df$BedroomAbvGr, 
+        xlab = "BedroomAbvGr")
+boxplot(house.df$KitchenAbvGr, 
+        xlab = "KitchenAbvGr")
+boxplot(house.df$Fireplaces, 
+        xlab = "Fireplaces")
+boxplot(house.df$PoolArea, 
+        xlab = "PoolArea")
+boxplot(house.df$MiscVal, 
+        xlab = "MiscVal")
+boxplot(house.df$GarageCars, 
+        xlab = "GarageCars")
+boxplot(house.df$SalePrice, 
+        xlab = "SalePrice")
+
+
+# Addressing outliers
+house.df <- house.df[house.df$MSSubClass < 150,]
+house.df <- house.df[house.df$LotFrontage < 200,]
+house.df <- house.df[house.df$LotArea < 100000,]
+house.df <- house.df[house.df$MasVnrArea < 1378,]
+house.df <- house.df[house.df$BsmtFinSF1 < 3000,]
+house.df <- house.df[house.df$BsmtFinSF2 < 1474,]
+house.df <- house.df[house.df$BsmtUnfSF < 2336,]
+house.df <- house.df[house.df$TotalBsmtSF < 4000,]
+house.df <- house.df[house.df$X1stFlrSF < 4000,]
+house.df <- house.df[house.df$X2ndFlrSF < 2000,]
+house.df <- house.df[house.df$LowQualFinSF < 50,]
+house.df <- house.df[house.df$GrLivArea < 4000,]
+house.df <- house.df[house.df$WoodDeckSF < 800,]
+house.df <- house.df[house.df$OpenPorchSF < 400,]
+house.df <- house.df[house.df$EnclosedPorch < 386,]
+house.df <- house.df[house.df$X3SsnPorch < 96,]
+house.df <- house.df[house.df$ScreenPorch < 350,]
+house.df <- house.df[house.df$PoolArea < 400,]
+house.df <- house.df[house.df$MiscVal < 5000,]
+summary(house.df)
+```
+
+```{r}
+######### Decision Tree, Random Forest, and Boosted Tree ###### (the CARTs doesn’t require dummy variable, so I created a particular partition and leave the CART model here before the dummy variable creating section for other models)
+### Partition data for CART ###
+set.seed(11)
+## partitioning into training (80%) and validation (20%) 
+train.rows.cart <- sample(rownames(house.df), nrow(house.df)*0.7)
+train.data.cart <- house.df[train.rows.cart, ]
+valid.rows.cart <- setdiff(rownames(house.df), train.rows.cart)
+valid.data.cart <- house.df[valid.rows.cart, ]
+
+### Full Tree ###
+library(rpart)
+library(Metrics)
+house.tree <- rpart(SalePrice ~ .,  # Numeric outcome ~ predictors
+                    data = train.data.cart, # dataset used to train tree
+                    method = "class",  # specifies classification tree
+                    cp = 0,            # complexity parameter
+                    minsplit = 1)     # minimum observations required to attempt split
+```
+
+```{r}
+# plot tree
+library(rpart.plot)
+prp(house.tree,   # tree model
+    type = 1,     # label all the nodes
+    extra = 1,    # show number of observations in each node
+    varlen = -10, # truncate variable names to 10 characters
+    box.col = ifelse(house.tree$frame$var == "<leaf>", 'gray', 'white')) # make leaves gray, decision nodes white
+
+house.tree.pred <- predict(house.tree, valid.data.cart)
+rmse(valid.data.cart$SalePrice, house.tree.pred) # huge RMSE value, poort predictive perfomance
+
+### Best Pruned Tree ###
+# finding the best pruned tree 
+house.best.pruned <- rpart(SalePrice ~ .,  
+                           data = train.data.cart, 
+                           method = "class",  
+                           cp = 0,            
+                           minsplit = 1,
+                           xval = 10) # number of folds to use in cross-validation
+# use `printcp()` to print the table
+printcp(house.best.pruned) # The higher splits, the higher the xerror indicating the potential of overfitting
+# use `plotcp()` to plot the optimal value of the Cp:
+plotcp(house.tree)
+```
+```{r}
+# Develop best prunned tree 
+house.tree.pr <- rpart(SalePrice ~ .,  
+                       data = train.data.cart, 
+                       method = "class",  
+                       cp = 0,           
+                       minsplit = 19 )   
+# plot tree
+prp(house.tree.pr,   # tree model
+    type = 1,     # label all the nodes
+    extra = 1,    # show number of observations in each node
+    varlen = -10, # truncate variable names to 10 characters
+    box.col = ifelse(house.tree.pr$frame$var == "<leaf>", 'gray', 'white'))
+
+
+### Random Forest ###
+library(randomForest)
+house.rf <- randomForest(SalePrice ~ .,
+                         data = train.data.cart,
+                         ntree = 500,
+                         mtry = 4,
+                         nodesize =5, importance = TRUE, na.action = na.omit)
+```
+```{r}
+# Variable importance plot
+varImpPlot(house.rf, type =1)
+# SalePrice prediction with Random Forest
+house.rf.pred <- predict(house.rf, valid.data.cart)
+# Calculate RMSE value
+install.packages("hydroGOF")
+library(hydroGOF)
+rmse(valid.data.cart$SalePrice, house.rf.pred, na.rm = TRUE) # Much smaller indicating a much better model than a single full decision tree
+
+### Boosted Tree ###
+install.packages("adabag")
+library(adabag)
+house.boosted <- boosting(as.factor(SalePrice) ~.,
+                          data = train.data.cart, boos = TRUE, mfinal = 10,
+                          control = (minsplit = -1))
+```
+```{r}
+# variable importance plot
+importanceplot(house.boosted)
+# SalePrice prediction with Boosted Tree
+house.boosted.pred <- predict(house.boosted, valid.data.cart)
+ # calculate RMSE value
+rmse(house.boosted.pred, valid.data.cart$SalePrice, na.rm = TRUE)
+```
+```{r}
+### FIRST FULL LINEAR MODEL ###
+####### dummy variables #######
+#get the names
+t(t(names(Filter(is.factor, house.df))))
+
+library(fastDummies)
+house.df <- dummy_cols(house.df,
+                       select_columns = c("MSZoning","LotShape", "LandContour","LotConfig","LandSlope","Condition1","BldgType","HouseStyle","RoofStyle","RoofMatl","Exterior1st","MasVnrType","ExterQual","Foundation","BsmtQual","BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2","Heating","HeatingQC","CentralAir","Electrical","KitchenQual","Functional","GarageType","GarageFinish","GarageQual","PavedDrive","SaleType","SaleCondition"),
+                       remove_first_dummy = TRUE,
+                       remove_selected_columns = TRUE)
+
+t(t(names(house.df))) #181 variables now
+str(house.df)
+
+####### partition the data #######
+set.seed(11)
+## partitioning into training (70%) and validation (30%) 
+train.rows <- sample(rownames(house.df), nrow(house.df)*0.7)
+train.data <- house.df[train.rows, ]
+valid.rows <- setdiff(rownames(house.df), train.rows)
+valid.data <- house.df[valid.rows, ]
+```
+```{r}
+install.packages("forecast")
+library(forecast)
+```
+
+```{r}
+####### FIRST FULL LINEAR MODEL #######
+
+options(scipen = 999, digits = 6)
+house.df.lm <- lm(SalePrice ~ ., data = train.data)
+summary.full <- summary(house.df.lm)
+summary.full
+dim(summary.full$coefficients)[1]-1
+AIC(house.df.lm)
+BIC(house.df.lm)
+library(forecast)
+valid.first.lm.pred <- predict(house.df.lm, valid.data)
+
+accuracy(valid.first.lm.pred, valid.data$SalePrice)
+```
+
+```{r}
+#########Reducing Catgeories#########
+
+###########################
+setwd("C:/Users/ahmou/OneDrive/Documents/working directory/")
+house.df <- read.csv("HousePrices.csv", stringsAsFactors = T, header = T)
+#Drop ID, Street because they are not necessary to our conclusions. 
+#Drop Alley, Utilities, Neighborhood, FireplaceQuality, PoolQC, Fence, MiscFeature because they have too many NAs
+t(t(names(house.df))) #81 variables
+house.df <- house.df[, -c(1,6,7,10,13,58,73,74,75)]
+t(t(names(house.df))) #we are now working with 72 variables
+
+#replace missing values for the rest of the columns with missing values with the median
+numcols <- colnames(Filter(is.numeric, house.df))
+for (i in numcols) {
+  ifelse(sum(is.na(house.df[[i]]))/nrow(house.df) > 0.01,
+         house.df[[i]][is.na(house.df[[i]])] <- median(house.df[[i]], na.rm = TRUE),
+         house.df <- house.df[!is.na(house.df[[i]]), ])
+}
+```
+
+```{r}
+####### addressing similar variables #######
+#drop Condition2, Exterior2nd, ExterCond, GarageCond, MoSold, YrSold
+#see variable descriptions for more. They are similar with other variables
+t(t(names(house.df)))
+house.df <- house.df[, -c(10,20,24,59,68,69)]
+t(t(names(house.df))) #we are now working with 66 variables
+
+
+####### addressing multicolinnearity #######
+#drop TotRmsAbvGrd because of GrLivArea. GrLivArea has higher correlation
+#drop GarageYrBuilt because of YrBuilt. YrBuilt has higher correlation
+#drop GarageArea because of GarageCars. GarageArea has the higher correlation
+t(t(names(house.df)))
+house.df <- house.df[, -c(47,51,54)]
+t(t(names(house.df))) #we are now working with 63 variables
+
+# Addressing outliers
+house.df <- house.df[house.df$MSSubClass < 150,]
+house.df <- house.df[house.df$LotFrontage < 200,]
+house.df <- house.df[house.df$LotArea < 100000,]
+house.df <- house.df[house.df$MasVnrArea < 1378,]
+house.df <- house.df[house.df$BsmtFinSF1 < 3000,]
+house.df <- house.df[house.df$BsmtFinSF2 < 1474,]
+house.df <- house.df[house.df$BsmtUnfSF < 2336,]
+house.df <- house.df[house.df$TotalBsmtSF < 4000,]
+house.df <- house.df[house.df$X1stFlrSF < 4000,]
+house.df <- house.df[house.df$X2ndFlrSF < 2000,]
+house.df <- house.df[house.df$LowQualFinSF < 50,]
+house.df <- house.df[house.df$GrLivArea < 4000,]
+house.df <- house.df[house.df$WoodDeckSF < 800,]
+house.df <- house.df[house.df$OpenPorchSF < 400,]
+house.df <- house.df[house.df$EnclosedPorch < 386,]
+house.df <- house.df[house.df$X3SsnPorch < 96,]
+house.df <- house.df[house.df$ScreenPorch < 350,]
+house.df <- house.df[house.df$PoolArea < 400,]
+house.df <- house.df[house.df$MiscVal < 5000,]
+
+# see how frequently each category occurs
+MSZoningfreq <- data.frame(table(house.df$MSZoning))             # create a frequency distribution for Color
+MSZoningfreq[order(MSZoningfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- MSZoningfreq[MSZoningfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor MSZoning2 that combines all other colors into an "Other" level
+house.df$MSZoning2 <- as.factor(ifelse(house.df$MSZoning %in% c("RL","RM"), 
+                                  as.character(house.df$MSZoning), "Other"))
+house.df[1:20, "MSZoning2"]
+
+# see how frequently each category occurs
+LotShapefreq <- data.frame(table(house.df$LotShape))             # create a frequency distribution for Color
+LotShapefreq[order(LotShapefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LotShapefreq[LotShapefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LotShape2 that combines all other colors into an "Other" level
+house.df$LotShape2 <- as.factor(ifelse(house.df$LotShape %in% c("IR1","Reg"), 
+                                       as.character(house.df$LotShape), "Other"))
+house.df[1:20, "LotShape2"]
+
+# see how frequently each category occurs
+LandContourfreq <- data.frame(table(house.df$LandContour))             # create a frequency distribution for Color
+LandContourfreq[order(LandContourfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LandContourfreq[LandContourfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LandContour2 that combines all other colors into an "Other" level
+house.df$LandContour2 <- as.factor(ifelse(house.df$LandContour %in% c("Lvl"), 
+                                       as.character(house.df$LandContour), "Other"))
+house.df[1:20, "LandContour2"]
+
+# see how frequently each category occurs
+LotConfigfreq <- data.frame(table(house.df$LotConfig))             # create a frequency distribution for Color
+LotConfigfreq[order(LotConfigfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LotConfigfreq[LotConfigfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LotConfig2 that combines all other colors into an "Other" level
+house.df$LotConfig2 <- as.factor(ifelse(house.df$LotConfig %in% c("Corner","CulDSac","Inside"), 
+                                          as.character(house.df$LotConfig), "Other"))
+house.df[1:20, "LotConfig2"]
+
+# see how frequently each category occurs
+LandSlopefreq <- data.frame(table(house.df$LandSlope))             # create a frequency distribution for Color
+LandSlopefreq[order(LandSlopefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LandSlopefreq[LandSlopefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LandSlope2 that combines all other colors into an "Other" level
+house.df$LandSlope2 <- as.factor(ifelse(house.df$LandSlope %in% c("Gtl"), 
+                                        as.character(house.df$LandSlope), "Other"))
+house.df[1:20, "LandSlope2"]
+
+# see how frequently each category occurs
+Condition1freq <- data.frame(table(house.df$Condition1))             # create a frequency distribution for Color
+Condition1freq[order(Condition1freq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Condition1freq[Condition1freq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Condition2 that combines all other colors into an "Other" level
+house.df$Condition2 <- as.factor(ifelse(house.df$Condition1 %in% c("Feedr","Norm"), 
+                                        as.character(house.df$Condition1), "Other"))
+house.df[1:20, "Condition2"]
+
+# see how frequently each category occurs
+BldgTypefreq <- data.frame(table(house.df$BldgType))             # create a frequency distribution for Color
+BldgTypefreq[order(BldgTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BldgTypefreq[BldgTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BldgType2 that combines all other colors into an "Other" level
+house.df$BldgType2 <- as.factor(ifelse(house.df$BldgType %in% c("1Fam","TwnhsE"), 
+                                        as.character(house.df$BldgType), "Other"))
+house.df[1:20, "BldgType2"]
+
+# see how frequently each category occurs
+HouseStylefreq <- data.frame(table(house.df$HouseStyle))             # create a frequency distribution for Color
+HouseStylefreq[order(HouseStylefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- HouseStylefreq[HouseStylefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor HouseStyle2 that combines all other colors into an "Other" level
+house.df$HouseStyle2 <- as.factor(ifelse(house.df$HouseStyle %in% c("1.5Fin","1Story","2Story"), 
+                                       as.character(house.df$HouseStyle), "Other"))
+house.df[1:20, "HouseStyle2"]
+
+# see how frequently each category occurs
+RoofStylefreq <- data.frame(table(house.df$RoofStyle))             # create a frequency distribution for Color
+RoofStylefreq[order(RoofStylefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- RoofStylefreq[RoofStylefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor RoofStyle2 that combines all other colors into an "Other" level
+house.df$RoofStyle2 <- as.factor(ifelse(house.df$RoofStyle %in% c("Gable","Hip"), 
+                                         as.character(house.df$RoofStyle), "Other"))
+house.df[1:20, "RoofStyle2"]
+
+# see how frequently each category occurs
+RoofMatlfreq <- data.frame(table(house.df$RoofMatl))             # create a frequency distribution for Color
+RoofMatlfreq[order(RoofMatlfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- RoofMatlfreq[RoofMatlfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor RoofMatl2 that combines all other colors into an "Other" level
+house.df$RoofMatl2 <- as.factor(ifelse(house.df$RoofMatl %in% c("CompShg"), 
+                                        as.character(house.df$RoofMatl), "Other"))
+house.df[1:20, "RoofMatl2"]
+
+# see how frequently each category occurs
+Exterior1stfreq <- data.frame(table(house.df$Exterior1st))             # create a frequency distribution for Color
+Exterior1stfreq[order(Exterior1stfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Exterior1stfreq[Exterior1stfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Exterior1st2 that combines all other colors into an "Other" level
+house.df$Exterior1st2 <- as.factor(ifelse(house.df$Exterior1st %in% c("HdBoard","MetalSd","Plywood","VinylSd","Wd Sdng"), 
+                                       as.character(house.df$Exterior1st), "Other"))
+house.df[1:20, "Exterior1st2"]
+
+# see how frequently each category occurs
+MasVnrTypefreq <- data.frame(table(house.df$MasVnrType))             # create a frequency distribution for Color
+MasVnrTypefreq[order(MasVnrTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- MasVnrTypefreq[MasVnrTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor MasVnrType2 that combines all other colors into an "Other" level
+house.df$MasVnrType2 <- as.factor(ifelse(house.df$MasVnrType %in% c("BrkFace","None","Stone"), 
+                                       as.character(house.df$MasVnrType), "Other"))
+house.df[1:20, "MasVnrType2"]
+
+
+# see how frequently each category occurs
+ExterQualfreq <- data.frame(table(house.df$ExterQual))             # create a frequency distribution for Color
+ExterQualfreq[order(ExterQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- ExterQualfreq[ExterQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor ExterQual2 that combines all other colors into an "Other" level
+house.df$ExterQual2 <- as.factor(ifelse(house.df$ExterQual %in% c("Gd","TA"), 
+                                       as.character(house.df$ExterQual), "Other"))
+house.df[1:20, "ExterQual2"]
+
+# see how frequently each category occurs
+Foundationfreq <- data.frame(table(house.df$Foundation))             # create a frequency distribution for Color
+Foundationfreq[order(Foundationfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Foundationfreq[Foundationfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Foundation2 that combines all other colors into an "Other" level
+house.df$Foundation2 <- as.factor(ifelse(house.df$Foundation %in% c("BrkTil","CBlock","PConc"), 
+                                       as.character(house.df$Foundation), "Other"))
+house.df[1:20, "Foundation2"]
+
+# see how frequently each category occurs
+BsmtQualfreq <- data.frame(table(house.df$BsmtQual))             # create a frequency distribution for Color
+BsmtQualfreq[order(BsmtQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtQualfreq[BsmtQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtQual2 that combines all other colors into an "Other" level
+house.df$BsmtQual2 <- as.factor(ifelse(house.df$BsmtQual %in% c("Ex","Gd","TA"), 
+                                       as.character(house.df$BsmtQual), "Other"))
+house.df[1:20, "BsmtQual2"]
+
+# see how frequently each category occurs
+BsmtCondfreq <- data.frame(table(house.df$BsmtCond))             # create a frequency distribution for Color
+BsmtCondfreq[order(BsmtCondfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtCondfreq[BsmtCondfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtCond2 that combines all other colors into an "Other" level
+house.df$BsmtCond2 <- as.factor(ifelse(house.df$BsmtCond %in% c("TA"), 
+                                       as.character(house.df$BsmtCond), "Other"))
+house.df[1:20, "BsmtCond2"]
+
+# see how frequently each category occurs
+BsmtExposurefreq <- data.frame(table(house.df$BsmtExposure))             # create a frequency distribution for Color
+BsmtExposurefreq[order(BsmtExposurefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtExposurefreq[BsmtExposurefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtExposure2 that combines all other colors into an "Other" level
+house.df$BsmtExposure2 <- as.factor(ifelse(house.df$BsmtExposure %in% c("Av","Gd","Mn","No"), 
+                                       as.character(house.df$BsmtExposure), "Other"))
+house.df[1:20, "BsmtExposure2"]
+
+# see how frequently each category occurs
+BsmtFinType1freq <- data.frame(table(house.df$BsmtFinType1))             # create a frequency distribution for Color
+BsmtFinType1freq[order(BsmtFinType1freq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtFinType1freq[BsmtFinType1freq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtFinTypeOne2 that combines all other colors into an "Other" level
+house.df$BsmtFinTypeOne2 <- as.factor(ifelse(house.df$BsmtFinType1 %in% c("ALQ","BLQ","GLQ","LwQ","Rec","Unf"), 
+                                       as.character(house.df$BsmtFinType1), "Other"))
+house.df[1:20, "BsmtFinTypeOne2"]
+
+# see how frequently each category occurs
+BsmtFinType2freq <- data.frame(table(house.df$BsmtFinType2))             # create a frequency distribution for Color
+BsmtFinType2freq[order(BsmtFinType2freq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtFinType2freq[BsmtFinType2freq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtFinTypeTwo2 that combines all other colors into an "Other" level
+house.df$BsmtFinTypeTwo2 <- as.factor(ifelse(house.df$BsmtFinType2 %in% c("Unf"), 
+                                             as.character(house.df$BsmtFinType2), "Other"))
+house.df[1:20, "BsmtFinTypeTwo2"]
+
+# see how frequently each category occurs
+Heatingfreq <- data.frame(table(house.df$Heating))             # create a frequency distribution for Color
+Heatingfreq[order(Heatingfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Heatingfreq[Heatingfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Heating2 that combines all other colors into an "Other" level
+house.df$Heating2 <- as.factor(ifelse(house.df$Heating %in% c("GasA"), 
+                                       as.character(house.df$Heating), "Other"))
+house.df[1:20, "Heating2"]
+
+# see how frequently each category occurs
+HeatingQCfreq <- data.frame(table(house.df$HeatingQC))             # create a frequency distribution for Color
+HeatingQCfreq[order(HeatingQCfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- HeatingQCfreq[HeatingQCfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor HeatingQC2 that combines all other colors into an "Other" level
+house.df$HeatingQC2 <- as.factor(ifelse(house.df$HeatingQC %in% c("Ex","Gd","TA"), 
+                                       as.character(house.df$HeatingQC), "Other"))
+house.df[1:20, "HeatingQC2"]
+
+# see how frequently each category occurs
+Electricalfreq <- data.frame(table(house.df$Electrical))             # create a frequency distribution for Color
+Electricalfreq[order(Electricalfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Electricalfreq[Electricalfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Electrical2 that combines all other colors into an "Other" level
+house.df$Electrical2 <- as.factor(ifelse(house.df$Electrical %in% c("FuseA","SBrkr"), 
+                                       as.character(house.df$Electrical), "Other"))
+house.df[1:20, "Electrical2"]
+
+# see how frequently each category occurs
+KitchenQualfreq <- data.frame(table(house.df$KitchenQual))             # create a frequency distribution for Color
+KitchenQualfreq[order(KitchenQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- KitchenQualfreq[KitchenQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor KitchenQual2 that combines all other colors into an "Other" level
+house.df$KitchenQual2 <- as.factor(ifelse(house.df$KitchenQual %in% c("Ex","Gd","TA"), 
+                                       as.character(house.df$KitchenQual), "Other"))
+house.df[1:20, "KitchenQual2"]
+
+# see how frequently each category occurs
+Functionalfreq <- data.frame(table(house.df$Functional))             # create a frequency distribution for Color
+Functionalfreq[order(Functionalfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Functionalfreq[Functionalfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Functional2 that combines all other colors into an "Other" level
+house.df$Functional2 <- as.factor(ifelse(house.df$Functional %in% c("Typ"), 
+                                       as.character(house.df$Functional), "Other"))
+house.df[1:20, "Functional2"]
+
+# see how frequently each category occurs
+GarageTypefreq <- data.frame(table(house.df$GarageType))             # create a frequency distribution for Color
+GarageTypefreq[order(GarageTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- GarageTypefreq[GarageTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor GarageType2 that combines all other colors into an "Other" level
+house.df$GarageType2 <- as.factor(ifelse(house.df$GarageType %in% c("Attchd","BuiltIn","Detchd"), 
+                                       as.character(house.df$GarageType), "Other"))
+house.df[1:20, "GarageType2"]
+
+# see how frequently each category occurs
+GarageFinishfreq <- data.frame(table(house.df$GarageFinish))             # create a frequency distribution for Color
+GarageFinishfreq[order(GarageFinishfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- GarageFinishfreq[GarageFinishfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor GarageFinish2 that combines all other colors into an "Other" level
+house.df$GarageFinish2 <- as.factor(ifelse(house.df$GarageFinish %in% c("Fin","RFn","Unf"), 
+                                       as.character(house.df$GarageFinish), "Other"))
+house.df[1:20, "GarageFinish2"]
+
+# see how frequently each category occurs
+GarageQualfreq <- data.frame(table(house.df$GarageQual))             # create a frequency distribution for Color
+GarageQualfreq[order(GarageQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- GarageQualfreq[GarageQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor GarageQual2 that combines all other colors into an "Other" level
+house.df$GarageQual2 <- as.factor(ifelse(house.df$GarageQual %in% c("TA"), 
+                                       as.character(house.df$GarageQual), "Other"))
+house.df[1:20, "GarageQual2"]
+
+# see how frequently each category occurs
+PavedDrivefreq <- data.frame(table(house.df$PavedDrive))             # create a frequency distribution for Color
+PavedDrivefreq[order(PavedDrivefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- PavedDrivefreq[PavedDrivefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor PavedDrive2 that combines all other colors into an "Other" level
+house.df$PavedDrive2 <- as.factor(ifelse(house.df$PavedDrive %in% c("N","Y"), 
+                                       as.character(house.df$PavedDrive), "Other"))
+house.df[1:20, "PavedDrive2"]
+
+# see how frequently each category occurs
+SaleTypefreq <- data.frame(table(house.df$SaleType))             # create a frequency distribution for Color
+SaleTypefreq[order(SaleTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- SaleTypefreq[SaleTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor SaleType2 that combines all other colors into an "Other" level
+house.df$SaleType2 <- as.factor(ifelse(house.df$SaleType %in% c("New","WD"), 
+                                       as.character(house.df$SaleType), "Other"))
+house.df[1:20, "SaleType2"]
+
+# see how frequently each category occurs
+SaleConditionfreq <- data.frame(table(house.df$SaleCondition))             # create a frequency distribution for Color
+SaleConditionfreq[order(SaleConditionfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- SaleConditionfreq[SaleConditionfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor SaleCondition2 that combines all other colors into an "Other" level
+house.df$SaleCondition2 <- as.factor(ifelse(house.df$SaleCondition %in% c("Abnorml","Normal","Partial"), 
+                                       as.character(house.df$SaleCondition), "Other"))
+house.df[1:20, "SaleCondition2"]
+
+#check names to remove the old columns that we replaced with new factors
+t(t(names(house.df)))
+#define the new dataset
+#keep CentralAir as is. did not create a new factor for it
+house.df2 <- house.df[,-c(2,5:11,16:19,21:26,28,32,33,35,46,47,49,50,52,53,61,62)]
+```
+```{r}
+####### dummy variables #######
+#get the names
+t(t(names(Filter(is.factor, house.df2))))
+#keep CentralAir as is. We did not need to create a new factor for it
+library(fastDummies)
+house.df2 <- dummy_cols(house.df2,
+                       select_columns = c("MSZoning2","LotShape2", "LandContour2","LotConfig2","LandSlope2",
+                                          "Condition2","BldgType2","HouseStyle2","RoofStyle2","RoofMatl2","Exterior1st2",
+                                          "MasVnrType2","ExterQual2","Foundation2","BsmtQual2","BsmtCond2","BsmtExposure2",
+                                          "BsmtFinTypeOne2","BsmtFinTypeTwo2","Heating2","HeatingQC2","CentralAir","Electrical2",
+                                          "KitchenQual2","Functional2","GarageType2","GarageFinish2","GarageQual2",
+                                          "PavedDrive2","SaleType2","SaleCondition2"),
+                       remove_first_dummy = TRUE,
+                       remove_selected_columns = TRUE)
+t(t(names(house.df2))) #104 variables now
+str(house.df2)
+summary(house.df2)
+
+####### partition the data #######
+set.seed(11)
+## partitioning into training (70%) and validation (30%) 
+train.rows <- sample(rownames(house.df2), nrow(house.df2)*0.7)
+train.data <- house.df2[train.rows, ]
+valid.rows <- setdiff(rownames(house.df2), train.rows)
+valid.data <- house.df2[valid.rows, ]
+
+t(t(names(train.data)))
+```
+
+```{r}
+### In a combination of correlation heatmap with the P-value from the linear regression, there are 4 variables that will not significantly contribute to the accuracy of our model. So removing those will bring back more benefits in term of resource, time and accuracy
+# Those variables are: "LowQualFinSF", "BsmtHalfBath", "X3SsnPorch", "MiscVal"
+# So we are cleaning up these 4 variables out of the dataset
+train.data <- train.data[, -c(15,18,28,31)]
+valid.data <- valid.data[, -c(15,18,28,31)]
+
+####### full linear model #######
+options(scipen = 999, digits = 6)
+house.df2.lm <- lm(SalePrice ~ ., data = train.data)
+summary.full <- summary(house.df2.lm)
+summary.full
+dim(summary.full$coefficients)[1]-1
+AIC(house.df2.lm)
+BIC(house.df2.lm)
+
+str(train.data)
+summary(train.data)
+
+valid.reduced.lm.pred <- predict(house.df2.lm, valid.data)
+
+accuracy(valid.reduced.lm.pred, valid.data$SalePrice)
+```
+```{r}
+### FORWARD SELECTION ####
+house.df2.lm.null <- lm(SalePrice ~ 1, data = train.data)
+house.df2.lm.fwd <- step(house.df2.lm.null, 
+                        scope = list(house.df2.lm.null, upper = house.df2.lm), 
+                        direction = "forward")
+summary.fwd <- summary(house.df2.lm.fwd)
+summary.fwd
+dim(summary.fwd$coefficients)[1]-1
+AIC(house.df2.lm.fwd)
+BIC(house.df2.lm.fwd)
+valid.fwd.lm.pred <- predict(house.df2.lm.fwd, valid.data)
+
+accuracy(valid.fwd.lm.pred, valid.data$SalePrice)
+```
+
+```{r}
+####### backward elimination #######
+house.df2.lm.back <- step(house.df2.lm, direction = "backward")
+summary.back <- summary(house.df2.lm.back)
+summary.back
+dim(summary.back$coefficients)[1]-1
+AIC(house.df2.lm.back)
+BIC(house.df2.lm.back)
+```
+```{r}
+valid.back.lm.pred <- predict(house.df2.lm.back, valid.data)
+
+accuracy(valid.back.lm.pred, valid.data$SalePrice)
+```
+
+```{r}
+####### stepwise regression #######
+house.df2.lm.step <- step(house.df2.lm.null, 
+                        scope = list(house.df2.lm.null, upper = house.df2.lm),
+                        direction = "both")
+summary.step <- summary(house.df2.lm.step)
+summary.step
+dim(summary.step$coefficients)[1]-1
+AIC(house.df2.lm.step)
+BIC(house.df2.lm.step)
+valid.fwd.lm.pred <- predict(house.df2.lm.fwd, valid.data)
+
+accuracy(valid.fwd.lm.pred, valid.data$SalePrice)
+```
+```{r}
+valid.step.lm.pred <- predict(house.df2.lm.step, valid.data)
+
+accuracy(valid.step.lm.pred, valid.data$SalePrice)
+```
+
+```{r}
+####### R-squared #######
+summary.full$r.squared
+summary.fwd$r.squared
+summary.back$r.squared
+summary.step$r.squared
+####### adjusted R-squared #######
+summary.full$adj.r.squared
+summary.fwd$adj.r.squared
+summary.back$adj.r.squared
+summary.step$adj.r.squared
+####### predictors #######
+dim(summary.full$coefficients)[1]-1
+dim(summary.fwd$coefficients)[1]-1
+dim(summary.back$coefficients)[1]-1
+```
+
+
+
+
+```{r}
+############ K-NN Time ##############
+#########K-NN#########
+#re-read data in 
+house.df <- read.csv("HousePrices.csv", stringsAsFactors = T, header = T)
+#Drop ID, Street because they are not necessary to our conclusions. 
+#Drop Alley, Utilities, Neighborhood, FireplaceQuality, PoolQC, Fence, MiscFeature because they have too many NAs
+t(t(names(house.df))) #81 variables
+house.df <- house.df[, -c(1,6,7,10,13,58,73,74,75)]
+t(t(names(house.df))) #we are now working with 72 variables
+
+#replace missing values for the rest of the columns with missing values with the median
+numcols <- colnames(Filter(is.numeric, house.df))
+for (i in numcols) {
+  ifelse(sum(is.na(house.df[[i]]))/nrow(house.df) > 0.01,
+         house.df[[i]][is.na(house.df[[i]])] <- median(house.df[[i]], na.rm = TRUE),
+         house.df <- house.df[!is.na(house.df[[i]]), ])
+}
+```
+```{r}
+####### addressing similar variables #######
+#drop Condition2, Exterior2nd, ExterCond, GarageCond, MoSold, YrSold
+#see variable descriptions for more. They are similar with other variables
+t(t(names(house.df)))
+house.df <- house.df[, -c(10,20,24,59,68,69)]
+t(t(names(house.df))) #we are now working with 66 variables
+####### addressing multicolinnearity #######
+#drop TotRmsAbvGrd because of GrLivArea. GrLivArea has higher correlation
+#drop GarageYrBuilt because of YrBuilt. YrBuilt has higher correlation
+#drop GarageArea because of GarageCars. GarageArea has the higher correlation
+t(t(names(house.df)))
+house.df <- house.df[, -c(47,51,54)]
+t(t(names(house.df))) #we are now working with 63 variables
+# Addressing outliers
+# Addressing outliers
+house.df <- house.df[house.df$MSSubClass < 150,]
+house.df <- house.df[house.df$LotFrontage < 200,]
+house.df <- house.df[house.df$LotArea < 100000,]
+house.df <- house.df[house.df$MasVnrArea < 1378,]
+house.df <- house.df[house.df$BsmtFinSF1 < 3000,]
+house.df <- house.df[house.df$BsmtFinSF2 < 1474,]
+house.df <- house.df[house.df$BsmtUnfSF < 2336,]
+house.df <- house.df[house.df$TotalBsmtSF < 4000,]
+house.df <- house.df[house.df$X1stFlrSF < 4000,]
+house.df <- house.df[house.df$X2ndFlrSF < 2000,]
+house.df <- house.df[house.df$LowQualFinSF < 50,]
+house.df <- house.df[house.df$GrLivArea < 4000,]
+house.df <- house.df[house.df$WoodDeckSF < 800,]
+house.df <- house.df[house.df$OpenPorchSF < 400,]
+house.df <- house.df[house.df$EnclosedPorch < 386,]
+house.df <- house.df[house.df$X3SsnPorch < 96,]
+house.df <- house.df[house.df$ScreenPorch < 350,]
+house.df <- house.df[house.df$PoolArea < 400,]
+house.df <- house.df[house.df$MiscVal < 5000,]
+```
+```{r}
+#check categorical variables
+t(t(colnames(Filter(is.factor, house.df)))) #31 categorical
+
+# see how frequently each category occurs
+MSZoningfreq <- data.frame(table(house.df$MSZoning))             # create a frequency distribution for Color
+MSZoningfreq[order(MSZoningfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- MSZoningfreq[MSZoningfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor MSZoning2 that combines all other colors into an "Other" level
+house.df$MSZoning2 <- as.factor(ifelse(house.df$MSZoning %in% c("RL","RM"), 
+                                       as.character(house.df$MSZoning), "Other"))
+house.df[1:20, "MSZoning2"]
+
+# see how frequently each category occurs
+LotShapefreq <- data.frame(table(house.df$LotShape))             # create a frequency distribution for Color
+LotShapefreq[order(LotShapefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LotShapefreq[LotShapefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LotShape2 that combines all other colors into an "Other" level
+house.df$LotShape2 <- as.factor(ifelse(house.df$LotShape %in% c("IR1","Reg"), 
+                                       as.character(house.df$LotShape), "Other"))
+house.df[1:20, "LotShape2"]
+
+# see how frequently each category occurs
+LandContourfreq <- data.frame(table(house.df$LandContour))             # create a frequency distribution for Color
+LandContourfreq[order(LandContourfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LandContourfreq[LandContourfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LandContour2 that combines all other colors into an "Other" level
+house.df$LandContour2 <- as.factor(ifelse(house.df$LandContour %in% c("Lvl"), 
+                                          as.character(house.df$LandContour), "Other"))
+house.df[1:20, "LandContour2"]
+
+# see how frequently each category occurs
+LotConfigfreq <- data.frame(table(house.df$LotConfig))             # create a frequency distribution for Color
+LotConfigfreq[order(LotConfigfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LotConfigfreq[LotConfigfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LotConfig2 that combines all other colors into an "Other" level
+house.df$LotConfig2 <- as.factor(ifelse(house.df$LotConfig %in% c("Corner","CulDSac","Inside"), 
+                                        as.character(house.df$LotConfig), "Other"))
+house.df[1:20, "LotConfig2"]
+
+# see how frequently each category occurs
+LandSlopefreq <- data.frame(table(house.df$LandSlope))             # create a frequency distribution for Color
+LandSlopefreq[order(LandSlopefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- LandSlopefreq[LandSlopefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor LandSlope2 that combines all other colors into an "Other" level
+house.df$LandSlope2 <- as.factor(ifelse(house.df$LandSlope %in% c("Gtl"), 
+                                        as.character(house.df$LandSlope), "Other"))
+house.df[1:20, "LandSlope2"]
+
+# see how frequently each category occurs
+Condition1freq <- data.frame(table(house.df$Condition1))             # create a frequency distribution for Color
+Condition1freq[order(Condition1freq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Condition1freq[Condition1freq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Condition2 that combines all other colors into an "Other" level
+house.df$Condition2 <- as.factor(ifelse(house.df$Condition1 %in% c("Feedr","Norm"), 
+                                        as.character(house.df$Condition1), "Other"))
+house.df[1:20, "Condition2"]
+
+# see how frequently each category occurs
+BldgTypefreq <- data.frame(table(house.df$BldgType))             # create a frequency distribution for Color
+BldgTypefreq[order(BldgTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BldgTypefreq[BldgTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BldgType2 that combines all other colors into an "Other" level
+house.df$BldgType2 <- as.factor(ifelse(house.df$BldgType %in% c("1Fam","TwnhsE"), 
+                                       as.character(house.df$BldgType), "Other"))
+house.df[1:20, "BldgType2"]
+
+# see how frequently each category occurs
+HouseStylefreq <- data.frame(table(house.df$HouseStyle))             # create a frequency distribution for Color
+HouseStylefreq[order(HouseStylefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- HouseStylefreq[HouseStylefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor HouseStyle2 that combines all other colors into an "Other" level
+house.df$HouseStyle2 <- as.factor(ifelse(house.df$HouseStyle %in% c("1.5Fin","1Story","2Story"), 
+                                         as.character(house.df$HouseStyle), "Other"))
+house.df[1:20, "HouseStyle2"]
+
+# see how frequently each category occurs
+RoofStylefreq <- data.frame(table(house.df$RoofStyle))             # create a frequency distribution for Color
+RoofStylefreq[order(RoofStylefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- RoofStylefreq[RoofStylefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor RoofStyle2 that combines all other colors into an "Other" level
+house.df$RoofStyle2 <- as.factor(ifelse(house.df$RoofStyle %in% c("Gable","Hip"), 
+                                        as.character(house.df$RoofStyle), "Other"))
+house.df[1:20, "RoofStyle2"]
+
+# see how frequently each category occurs
+RoofMatlfreq <- data.frame(table(house.df$RoofMatl))             # create a frequency distribution for Color
+RoofMatlfreq[order(RoofMatlfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- RoofMatlfreq[RoofMatlfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor RoofMatl2 that combines all other colors into an "Other" level
+house.df$RoofMatl2 <- as.factor(ifelse(house.df$RoofMatl %in% c("CompShg"), 
+                                       as.character(house.df$RoofMatl), "Other"))
+house.df[1:20, "RoofMatl2"]
+
+# see how frequently each category occurs
+Exterior1stfreq <- data.frame(table(house.df$Exterior1st))             # create a frequency distribution for Color
+Exterior1stfreq[order(Exterior1stfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Exterior1stfreq[Exterior1stfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Exterior1st2 that combines all other colors into an "Other" level
+house.df$Exterior1st2 <- as.factor(ifelse(house.df$Exterior1st %in% c("HdBoard","MetalSd","Plywood","VinylSd","Wd Sdng"), 
+                                          as.character(house.df$Exterior1st), "Other"))
+house.df[1:20, "Exterior1st2"]
+
+# see how frequently each category occurs
+MasVnrTypefreq <- data.frame(table(house.df$MasVnrType))             # create a frequency distribution for Color
+MasVnrTypefreq[order(MasVnrTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- MasVnrTypefreq[MasVnrTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor MasVnrType2 that combines all other colors into an "Other" level
+house.df$MasVnrType2 <- as.factor(ifelse(house.df$MasVnrType %in% c("BrkFace","None","Stone"), 
+                                         as.character(house.df$MasVnrType), "Other"))
+house.df[1:20, "MasVnrType2"]
+
+
+# see how frequently each category occurs
+ExterQualfreq <- data.frame(table(house.df$ExterQual))             # create a frequency distribution for Color
+ExterQualfreq[order(ExterQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- ExterQualfreq[ExterQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor ExterQual2 that combines all other colors into an "Other" level
+house.df$ExterQual2 <- as.factor(ifelse(house.df$ExterQual %in% c("Gd","TA"), 
+                                        as.character(house.df$ExterQual), "Other"))
+house.df[1:20, "ExterQual2"]
+
+# see how frequently each category occurs
+Foundationfreq <- data.frame(table(house.df$Foundation))             # create a frequency distribution for Color
+Foundationfreq[order(Foundationfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Foundationfreq[Foundationfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Foundation2 that combines all other colors into an "Other" level
+house.df$Foundation2 <- as.factor(ifelse(house.df$Foundation %in% c("BrkTil","CBlock","PConc"), 
+                                         as.character(house.df$Foundation), "Other"))
+house.df[1:20, "Foundation2"]
+
+# see how frequently each category occurs
+BsmtQualfreq <- data.frame(table(house.df$BsmtQual))             # create a frequency distribution for Color
+BsmtQualfreq[order(BsmtQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtQualfreq[BsmtQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtQual2 that combines all other colors into an "Other" level
+house.df$BsmtQual2 <- as.factor(ifelse(house.df$BsmtQual %in% c("Ex","Gd","TA"), 
+                                       as.character(house.df$BsmtQual), "Other"))
+house.df[1:20, "BsmtQual2"]
+
+# see how frequently each category occurs
+BsmtCondfreq <- data.frame(table(house.df$BsmtCond))             # create a frequency distribution for Color
+BsmtCondfreq[order(BsmtCondfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtCondfreq[BsmtCondfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtCond2 that combines all other colors into an "Other" level
+house.df$BsmtCond2 <- as.factor(ifelse(house.df$BsmtCond %in% c("TA"), 
+                                       as.character(house.df$BsmtCond), "Other"))
+house.df[1:20, "BsmtCond2"]
+
+# see how frequently each category occurs
+BsmtExposurefreq <- data.frame(table(house.df$BsmtExposure))             # create a frequency distribution for Color
+BsmtExposurefreq[order(BsmtExposurefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtExposurefreq[BsmtExposurefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtExposure2 that combines all other colors into an "Other" level
+house.df$BsmtExposure2 <- as.factor(ifelse(house.df$BsmtExposure %in% c("Av","Gd","Mn","No"), 
+                                           as.character(house.df$BsmtExposure), "Other"))
+house.df[1:20, "BsmtExposure2"]
+
+# see how frequently each category occurs
+BsmtFinType1freq <- data.frame(table(house.df$BsmtFinType1))             # create a frequency distribution for Color
+BsmtFinType1freq[order(BsmtFinType1freq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtFinType1freq[BsmtFinType1freq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtFinTypeOne2 that combines all other colors into an "Other" level
+house.df$BsmtFinTypeOne2 <- as.factor(ifelse(house.df$BsmtFinType1 %in% c("ALQ","BLQ","GLQ","LwQ","Rec","Unf"), 
+                                             as.character(house.df$BsmtFinType1), "Other"))
+house.df[1:20, "BsmtFinTypeOne2"]
+
+# see how frequently each category occurs
+BsmtFinType2freq <- data.frame(table(house.df$BsmtFinType2))             # create a frequency distribution for Color
+BsmtFinType2freq[order(BsmtFinType2freq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- BsmtFinType2freq[BsmtFinType2freq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor BsmtFinTypeTwo2 that combines all other colors into an "Other" level
+house.df$BsmtFinTypeTwo2 <- as.factor(ifelse(house.df$BsmtFinType2 %in% c("Unf"), 
+                                             as.character(house.df$BsmtFinType2), "Other"))
+house.df[1:20, "BsmtFinTypeTwo2"]
+
+# see how frequently each category occurs
+Heatingfreq <- data.frame(table(house.df$Heating))             # create a frequency distribution for Color
+Heatingfreq[order(Heatingfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Heatingfreq[Heatingfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Heating2 that combines all other colors into an "Other" level
+house.df$Heating2 <- as.factor(ifelse(house.df$Heating %in% c("GasA"), 
+                                      as.character(house.df$Heating), "Other"))
+house.df[1:20, "Heating2"]
+
+# see how frequently each category occurs
+HeatingQCfreq <- data.frame(table(house.df$HeatingQC))             # create a frequency distribution for Color
+HeatingQCfreq[order(HeatingQCfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- HeatingQCfreq[HeatingQCfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor HeatingQC2 that combines all other colors into an "Other" level
+house.df$HeatingQC2 <- as.factor(ifelse(house.df$HeatingQC %in% c("Ex","Gd","TA"), 
+                                        as.character(house.df$HeatingQC), "Other"))
+house.df[1:20, "HeatingQC2"]
+
+# see how frequently each category occurs
+Electricalfreq <- data.frame(table(house.df$Electrical))             # create a frequency distribution for Color
+Electricalfreq[order(Electricalfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Electricalfreq[Electricalfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Electrical2 that combines all other colors into an "Other" level
+house.df$Electrical2 <- as.factor(ifelse(house.df$Electrical %in% c("FuseA","SBrkr"), 
+                                         as.character(house.df$Electrical), "Other"))
+house.df[1:20, "Electrical2"]
+
+# see how frequently each category occurs
+KitchenQualfreq <- data.frame(table(house.df$KitchenQual))             # create a frequency distribution for Color
+KitchenQualfreq[order(KitchenQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- KitchenQualfreq[KitchenQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor KitchenQual2 that combines all other colors into an "Other" level
+house.df$KitchenQual2 <- as.factor(ifelse(house.df$KitchenQual %in% c("Ex","Gd","TA"), 
+                                          as.character(house.df$KitchenQual), "Other"))
+house.df[1:20, "KitchenQual2"]
+
+# see how frequently each category occurs
+Functionalfreq <- data.frame(table(house.df$Functional))             # create a frequency distribution for Color
+Functionalfreq[order(Functionalfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- Functionalfreq[Functionalfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor Functional2 that combines all other colors into an "Other" level
+house.df$Functional2 <- as.factor(ifelse(house.df$Functional %in% c("Typ"), 
+                                         as.character(house.df$Functional), "Other"))
+house.df[1:20, "Functional2"]
+
+# see how frequently each category occurs
+GarageTypefreq <- data.frame(table(house.df$GarageType))             # create a frequency distribution for Color
+GarageTypefreq[order(GarageTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- GarageTypefreq[GarageTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor GarageType2 that combines all other colors into an "Other" level
+house.df$GarageType2 <- as.factor(ifelse(house.df$GarageType %in% c("Attchd","BuiltIn","Detchd"), 
+                                         as.character(house.df$GarageType), "Other"))
+house.df[1:20, "GarageType2"]
+
+# see how frequently each category occurs
+GarageFinishfreq <- data.frame(table(house.df$GarageFinish))             # create a frequency distribution for Color
+GarageFinishfreq[order(GarageFinishfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- GarageFinishfreq[GarageFinishfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor GarageFinish2 that combines all other colors into an "Other" level
+house.df$GarageFinish2 <- as.factor(ifelse(house.df$GarageFinish %in% c("Fin","RFn","Unf"), 
+                                           as.character(house.df$GarageFinish), "Other"))
+house.df[1:20, "GarageFinish2"]
+
+# see how frequently each category occurs
+GarageQualfreq <- data.frame(table(house.df$GarageQual))             # create a frequency distribution for Color
+GarageQualfreq[order(GarageQualfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- GarageQualfreq[GarageQualfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor GarageQual2 that combines all other colors into an "Other" level
+house.df$GarageQual2 <- as.factor(ifelse(house.df$GarageQual %in% c("TA"), 
+                                         as.character(house.df$GarageQual), "Other"))
+house.df[1:20, "GarageQual2"]
+
+# see how frequently each category occurs
+PavedDrivefreq <- data.frame(table(house.df$PavedDrive))             # create a frequency distribution for Color
+PavedDrivefreq[order(PavedDrivefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- PavedDrivefreq[PavedDrivefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor PavedDrive2 that combines all other colors into an "Other" level
+house.df$PavedDrive2 <- as.factor(ifelse(house.df$PavedDrive %in% c("N","Y"), 
+                                         as.character(house.df$PavedDrive), "Other"))
+house.df[1:20, "PavedDrive2"]
+
+# see how frequently each category occurs
+SaleTypefreq <- data.frame(table(house.df$SaleType))             # create a frequency distribution for Color
+SaleTypefreq[order(SaleTypefreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- SaleTypefreq[SaleTypefreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor SaleType2 that combines all other colors into an "Other" level
+house.df$SaleType2 <- as.factor(ifelse(house.df$SaleType %in% c("New","WD"), 
+                                       as.character(house.df$SaleType), "Other"))
+house.df[1:20, "SaleType2"]
+
+# see how frequently each category occurs
+SaleConditionfreq <- data.frame(table(house.df$SaleCondition))             # create a frequency distribution for Color
+SaleConditionfreq[order(SaleConditionfreq$Freq, decreasing = TRUE),]     # sort the frequencies high to low
+# list the colors that appear in at least 5% of the records (this is not a rule of thumb - just the
+# cutoff I chose here)
+common <- SaleConditionfreq[SaleConditionfreq$Freq / nrow(house.df) > .05, ]
+common
+# create a new factor SaleCondition2 that combines all other colors into an "Other" level
+house.df$SaleCondition2 <- as.factor(ifelse(house.df$SaleCondition %in% c("Abnorml","Normal","Partial"), 
+                                            as.character(house.df$SaleCondition), "Other"))
+house.df[1:20, "SaleCondition2"]
+```
+```{r}
+#keep CentralAir as is. did not create a new factor for it
+house.df2 <- house.df[,-c(2,5:11,16:19,21:26,28,32,33,35,46,47,49,50,52,53,61,62)]
+
+t(t(colnames(Filter(is.factor, house.df2))))
+
+library(fastDummies)
+#not dropping dummies for k-nn
+house.df.knn <- dummy_cols(house.df2,
+                       select_columns = c("MSZoning2","LotShape2", "LandContour2","LotConfig2","LandSlope2",
+                                          "Condition2","BldgType2","HouseStyle2","RoofStyle2","RoofMatl2","Exterior1st2",
+                                          "MasVnrType2","ExterQual2","Foundation2","BsmtQual2","BsmtCond2","BsmtExposure2",
+                                          "BsmtFinTypeOne2","BsmtFinTypeTwo2","Heating2","HeatingQC2","CentralAir","Electrical2",
+                                          "KitchenQual2","Functional2","GarageType2","GarageFinish2","GarageQual2",
+                                          "PavedDrive2","SaleType2","SaleCondition2"),
+                       remove_selected_columns = TRUE)
+t(t(names(house.df.knn))) #131 predictors now
+str(house.df.knn)
+
+set.seed(11)
+## partitioning into training (70%) and validation (30%) 
+train.rows <- sample(rownames(house.df.knn), nrow(house.df.knn)*0.8)
+train.data <- house.df.knn[train.rows, ]
+valid.rows <- setdiff(rownames(house.df.knn), train.rows)
+valid.data <- house.df.knn[valid.rows, ]
+
+t(t(names(train.data)))
+
+### In a combination of correlation heatmap with the P-value from the linear regression, there are 6 variables that will not significantly contribute to the accuracy of our model. So removing those will bring back more benefits in term of resource, time and accuracy
+# Those variables are: "LowQualFinSF", "BsmtHalfBath", "X3SsnPorch", "MiscVal"
+# So we are cleaning up these 4 variables out of the dataset
+train.data <- train.data[, -c(15,18,28,31)]
+valid.data <- valid.data[, -c(15,18,28,31)]
+
+## normalize data
+# initialize normalized training and validation data to originals
+train.norm <- train.data
+valid.norm <- valid.data
+t(t(names(train.data)))
+```
+```{r}
+#28
+# normalize all predictors to a 0-1 scale
+# standardize numerical predictors to 0-1 scale
+cols <- colnames(train.data[, -28])
+for (i in cols) {
+  valid.norm[[i]] <- (valid.norm[[i]] - min(train.data[[i]])) / (max(train.data[[i]]) - min(train.data[[i]]))
+  train.norm[[i]] <- (train.norm[[i]] - min(train.data[[i]])) / (max(train.data[[i]]) - min(train.data[[i]]))
+}
+summary(train.norm)
+summary(valid.norm)
+colSums(is.na(train.norm))
+t(t(names(train.norm)))
+
+library(FNN)
+####### k-NN regression with k=1 #######
+house.df.nn <- knn.reg(train = train.norm[, c(3:11,13,14,19:22,25,26,31,38,44,45,48,50,57,59:62,66,67,69,70,74,76:78,80,82,88,90,107:109,111,113,114,117,126,127,129)],
+                      test = valid.norm[, c(3:11,13,14,19:22,25,26,31,38,44,45,48,50,57,59:62,66,67,69,70,74,76:78,80,82,88,90,107:109,111,113,114,117,126,127,129)], 
+                      y = train.norm$SalePrice, 
+                      k = 1)
+
+rmse(house.df.nn$pred, valid.norm$SalePrice)
+
+# calculate mean error
+meanerror <- function(actual, pred){
+  mean(actual - pred)
+}
+meanerror(valid.norm$SalePrice, house.df.nn$pred)
+```
+```{r}
+####### finding optimal k for house prices data #######
+# initialize a data frame with two columns: k and accuracy
+RMSE.df <- data.frame(k = seq(1, 30, 1), RMSE.k = rep(0, 30))
+
+# compute knn for different k on validation set
+for (i in 1:30) {
+  knn.reg.pred <- knn.reg(train.norm[, c(3:11,13,14,19:22,25,26,31,38,44,45,48,50,57,59:62,66,67,69,70,74,76:78,80,82,88,90,107:109,111,113,114,117,126,127,129)], 
+                          valid.norm[, c(3:11,13,14,19:22,25,26,31,38,44,45,48,50,57,59:62,66,67,69,70,74,76:78,80,82,88,90,107:109,111,113,114,117,126,127,129)], 
+                          train.norm$SalePrice, k = i)
+  RMSE.df[i, 2] <- rmse(valid.norm$SalePrice, knn.reg.pred$pred)
+}
+RMSE.df
+
+RMSE.df[RMSE.df$RMSE.k == min(RMSE.df$RMSE.k), ]
+
+# k-NN with optimal k
+house.df.nn.best <- knn.reg(train = train.norm[, c(3:11,13,14,19:22,25,26,31,38,44,45,48,50,57,59:62,66,67,69,70,74,76:78,80,82,88,90,107:109,111,113,114,117,126,127,129)],  
+                           test = valid.norm[, c(3:11,13,14,19:22,25,26,31,38,44,45,48,50,57,59:62,66,67,69,70,74,76:78,80,82,88,90,107:109,111,113,114,117,126,127,129)],
+                           y = train.norm$SalePrice,
+                           k = 7)
+rmse(house.df.nn.best$pred, valid.norm$SalePrice)
+meanerror(valid.norm$SalePrice, house.df.nn.best$pred)
+```
+
